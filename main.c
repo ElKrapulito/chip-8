@@ -1,3 +1,4 @@
+#include "chip-8.h"
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -46,5 +47,7 @@ int main() {
   printf("%04x\n", opcodefirst);
 
   fclose(fptr);
+  Chip8 *chip = createChip();
+  loadfonts(chip);
   return 0;
 }
