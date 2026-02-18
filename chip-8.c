@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/stat.h>
 
 uint8_t *fonts[16];
 uint8_t zero[] = {0xF0, 0x90, 0x90, 0x90, 0xF0, '\0'};
@@ -21,7 +22,7 @@ uint8_t letter_d[] = {0xE0, 0x90, 0x90, 0x90, 0xE0, '\0'};
 uint8_t letter_e[] = {0xF0, 0x80, 0xF0, 0x80, 0xF0, '\0'};
 uint8_t letter_f[] = {0xF0, 0x80, 0xF0, 0x80, 0x80, '\0'};
 
-int loadfonts(Chip8 *chip) {
+void loadfonts(Chip8 *chip) {
   fonts[0] = zero;
   fonts[1] = one;
   fonts[2] = two;
@@ -50,16 +51,54 @@ int loadfonts(Chip8 *chip) {
     }
   }
 
-  memlocation = &chip->memory[0x50];
-  for (int i = 0; i < 16; i++) {
-    for (int j = 0; j < 5; j++) {
-      printf("%d : values loaded in memory %02x\n", i, *memlocation);
-      *memlocation = *fonts[i];
-      memlocation++;
-      fonts[i]++;
-    }
+  // this is to make sure the fonts were loaded
+  // memlocation = &chip->memory[0x50];
+  // for (int i = 0; i < 16; i++) {
+  //  for (int j = 0; j < 5; j++) {
+  //    printf("%02x : values loaded in memory %02x\n", memlocation,
+  //           *memlocation);
+  //    *memlocation = *fonts[i];
+  //    memlocation++;
+  //    fonts[i]++;
+  //  }
+  //}
+}
+
+uint16_t fixopposition(uint16_t val) {
+  return ((val << 8) & 0xFF00 | (val >> 8) & 0xFF);
+}
+
+void loadfile(Chip8 *chip, char *path) {
+  uint8_t *memlocation = &chip->memory[0x200];
+  struct stat filestat;
+  stat(path, &filestat);
+  size_t filesize = filestat.st_size;
+
+  FILE *fptr;
+  uint16_t data[filesize];
+
+  fptr = fopen(path, "rb");
+
+  if (fptr == NULL) {
+    printf("file failed to open\n");
+    return;
   }
-  return 0;
+  size_t binary = fread(data, sizeof(data), filesize, fptr);
+
+  printf("file size is: %u bytes\n", (unsigned int)filestat.st_size);
+
+  for (int n = 0; n != filesize; ++n) {
+    uint16_t corrected = fixopposition(data[n]);
+    printf("%04x\n", corrected);
+    *memlocation = (corrected & 0xFF00) >> 8;
+    printf("first byte code: %02x\n", *memlocation);
+    memlocation++;
+    *memlocation = (corrected & 0xFF);
+    printf("second byte code: %02x\n", *memlocation);
+    memlocation++;
+  }
+  printf("\n");
+  fclose(fptr);
 }
 
 Chip8 *createChip() {

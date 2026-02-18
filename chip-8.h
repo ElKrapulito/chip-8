@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <stdio.h>
 
 typedef struct Chip8 {
 	uint16_t pc;
@@ -10,5 +11,6 @@ typedef struct Chip8 {
 	uint8_t sound_t;
 } Chip8;
 
-int loadfonts(Chip8 *chip);
+void loadfonts(Chip8 *chip);
+void loadfile(Chip8 *chip, char *path);
 Chip8 *createChip();
