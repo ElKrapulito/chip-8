@@ -10,12 +10,19 @@ uint16_t fetch(Chip8 *chip) {
   return opcode;
 }
 
+
+
 void handlezero(uint16_t opcode) {
   switch (opcode) {
   case 0x00e0:
     printf("clear display!\n");
     break;
   }
+}
+
+void handleone(Chip8 *chip, uint16_t opcode) {
+	chip->pc = opcode & 0xFFF;
+	printf("[%04x] jumpt to %04x\n", opcode, opcode & 0xFFF);
 }
 
 void handlesix(Chip8 *chip, uint16_t opcode) {
@@ -81,6 +88,9 @@ void decode(Chip8 *chip, uint16_t opcode) {
   switch (firstnibble) {
   case 0:
     handlezero(opcode);
+    break;
+  case 1:
+    handleone(chip, opcode);
     break;
   case 6:
     handlesix(chip, opcode);
