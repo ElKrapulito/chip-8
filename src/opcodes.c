@@ -1,5 +1,6 @@
 #include "opcodes.h"
 #include <stdint.h>
+#include <stdio.h>
 
 uint16_t fetch(Chip8 *chip) {
   uint16_t *firstbyte = (uint16_t *)&chip->memory[chip->pc];
@@ -94,7 +95,7 @@ void decode(Chip8 *chip, uint16_t opcode) {
     handleD(chip, opcode);
     break;
   default:
-    printf("operation not handle: %04x\n", opcode);
+    printf("[%04x] operation not handle\n", opcode);
     return;
   }
 }

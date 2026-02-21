@@ -1,4 +1,5 @@
 #include "opcodes.h"
+#include "chip-8.h"
 #include <stdio.h>
 #include <stdlib.h>
 
