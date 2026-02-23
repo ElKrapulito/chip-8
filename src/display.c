@@ -1,45 +1,101 @@
+#define SDL_MAIN_USE_CALLBACKS 1
+#define BYTE_SIZE 8
+
 #include "chip-8.h"
+#include "common.h"
 #include "opcodes.h"
+#include <SDL3/SDL.h>
+#include <SDL3/SDL_main.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 
-#define BYTE_SIZE 8
+static SDL_Window *window = NULL;
+static SDL_Renderer *renderer = NULL;
+static Chip8 *chip = NULL;
+static Uint64 last_time = 0;
 
-void print_binary_custom(uint8_t n) {
-  int bits = sizeof(n) * BYTE_SIZE;
+#define WINDOWS_WIDTH 64
+#define WINDOWS_HEIGHT 32
+#define SCALE_PX 5
 
-  for (int i = bits - 1; i >= 0; i--) {
-    unsigned int bit = (n >> i) & 1;
-    printf("%c", bit ? '#' : '.');
+SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
+  SDL_SetAppMetadata("Chip8", "1.0", "com.chip8");
+
+  if (!SDL_Init(SDL_INIT_VIDEO)) {
+    SDL_Log("Couldn't start window: %s", SDL_GetError());
+    return SDL_APP_FAILURE;
   }
+
+  if (!SDL_CreateWindowAndRenderer("chip8", WINDOWS_WIDTH * SCALE_PX,
+                                   WINDOWS_HEIGHT * SCALE_PX,
+                                   SDL_WINDOW_RESIZABLE, &window, &renderer)) {
+    SDL_Log("couldn't create window and renderer: %s", SDL_GetError());
+    return SDL_APP_FAILURE;
+  }
+
+  SDL_SetRenderLogicalPresentation(renderer, WINDOWS_WIDTH * SCALE_PX,
+                                   WINDOWS_HEIGHT * SCALE_PX,
+                                   SDL_LOGICAL_PRESENTATION_LETTERBOX);
+
+  last_time = SDL_GetTicks();
+  chip = initializeChip("../test/2-ibm-logo.ch8");
+
+  return SDL_APP_CONTINUE;
 }
 
-int main() {
-  Chip8 *chip = initializeChip("../test/2-ibm-logo.ch8");
+SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event) {
+  if (event->type == SDL_EVENT_QUIT) {
+    return SDL_APP_SUCCESS;
+  }
+  return SDL_APP_CONTINUE;
+}
 
-  uint16_t op;
-  for (int i = 0;i < 20; i++) {
-    op = fetch(chip);
-    decode(chip, op);
-    if (((op >> 12) & 0xF) == 0xD) {
-      for (int i = 0; i < 16; i++) {
-        for (int j = 0; j < 8; j++) {
-          // printf("%08b", chip->displaybuffer[j][i]);
-          print_binary_custom(chip->displaybuffer[j][i]);
+uint16_t opcode;
+SDL_FRect rects[256];
+
+SDL_AppResult SDL_AppIterate(void *appstate) {
+  // const Uint64 now = SDL_GetTicks();
+  // const float elapsed = ((float)(now - last_time)) / 1000.0f;
+
+  opcode = fetch(chip);
+  decode(chip, opcode);
+
+  // if (((opcode >> 12) & 0xF) == 0xD) {
+  SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
+  SDL_RenderClear(renderer);
+
+  int recti = 0;
+  for (int i = 0; i < 16; i++) {
+    for (int j = 0; j < 16; j++) {
+      int x = (i & 7) * 8;
+      int y = (i > 8 ? 16 : 0) + j;
+      uint8_t pixels = chip->displaybuffer[i][j];
+      for (int p = 7; p >= 0; p--) {
+        uint8_t bit = (pixels >> p) & 1;
+        if (bit == 1) {
+          int col = x + (8 - (p + 1));
+          printf("adding pixels: x: %d y: %d\n", x, y);
+          rects[recti].x = col * SCALE_PX;
+          rects[recti].y = y * SCALE_PX;
+          rects[recti].w = rects[recti].h = 1 * SCALE_PX;
+          recti++;
         }
-        printf("\n");
-      }
-      for (int i = 0; i < 16; i++) {
-        for (int j = 8; j < 16; j++) {
-          // printf("%08b", chip->displaybuffer[j][i]);
-          print_binary_custom(chip->displaybuffer[j][i]);
-        }
-        printf("\n");
       }
     }
   }
+  recti = 0;
 
+  SDL_SetRenderDrawColor(renderer, 0, 255, 0, SDL_ALPHA_OPAQUE);
+  SDL_RenderFillRects(renderer, rects, SDL_arraysize(rects));
+
+  SDL_RenderPresent(renderer);
+  // last_time = now;
+
+  return SDL_APP_CONTINUE;
+}
+
+void SDL_AppQuit(void *appstate, SDL_AppResult result) {
   free(chip);
   chip = NULL;
-  return 0;
 }

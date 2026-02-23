@@ -22,7 +22,7 @@ void handlezero(uint16_t opcode) {
 
 void handleone(Chip8 *chip, uint16_t opcode) {
 	chip->pc = opcode & 0xFFF;
-	printf("[%04x] jumpt to %04x\n", opcode, opcode & 0xFFF);
+	//printf("[%04x] jump to %04x\n", opcode, opcode & 0xFFF);
 }
 
 void handlesix(Chip8 *chip, uint16_t opcode) {
@@ -82,8 +82,8 @@ void handleD(Chip8 *chip, uint16_t opcode) {
 
 void decode(Chip8 *chip, uint16_t opcode) {
   uint16_t firstnibble = (opcode & 0xF000) >> 12;
-  printf("opcode: %04x\n", opcode);
-  printf("first nibble: %d\n", firstnibble);
+  // printf("opcode: %04x\n", opcode);
+  //printf("first nibble: %d\n", firstnibble);
 
   switch (firstnibble) {
   case 0:
