@@ -71,7 +71,7 @@ void loadfile(Chip8 *chip, char *path) {
     printf("file failed to open\n");
     return;
   }
-  size_t binary = fread(data, sizeof(data), filesize, fptr);
+  size_t binary = fread(data, sizeof(uint8_t), filesize, fptr);
 
   printf("file size is: %u bytes\n", (unsigned int)filestat.st_size);
 
@@ -99,5 +99,6 @@ Chip8 *initializeChip(char *filepath) {
 	loadfonts(chip);
 	loadfile(chip, filepath);
 	chip->pc = 0x200;
+	chip->stcount = 0;
 	return chip;
 }

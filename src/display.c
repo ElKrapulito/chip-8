@@ -1,3 +1,4 @@
+#include <SDL3/SDL_init.h>
 #define SDL_MAIN_USE_CALLBACKS 1
 #define BYTE_SIZE 8
 
@@ -9,6 +10,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 static SDL_Window *window = NULL;
 static SDL_Renderer *renderer = NULL;
@@ -39,7 +41,17 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
                                    SDL_LOGICAL_PRESENTATION_LETTERBOX);
 
   last_time = SDL_GetTicks();
-  chip = initializeChip("../test/2-ibm-logo.ch8");
+
+  //if (argc < 2) {
+  //  printf("rom args < 2: %s\n", argv[0]);
+  //  return SDL_APP_FAILURE;
+  //}
+  //if (argc > 1) {
+  //  printf("rom args > 1: %s %s\n", argv[0], argv[1]);
+  //  return SDL_APP_FAILURE;
+  //}
+  printf("rom route: %s\n", argv[1]);
+  chip = initializeChip(argv[1]);
 
   return SDL_APP_CONTINUE;
 }
@@ -52,7 +64,7 @@ SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event) {
 }
 
 uint16_t opcode;
-SDL_FRect rects[256];
+SDL_FRect rects[2048];
 
 SDL_AppResult SDL_AppIterate(void *appstate) {
   // const Uint64 now = SDL_GetTicks();
@@ -61,30 +73,29 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
   opcode = fetch(chip);
   decode(chip, opcode);
 
-  // if (((opcode >> 12) & 0xF) == 0xD) {
   SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
   SDL_RenderClear(renderer);
 
-  int recti = 0;
-  for (int i = 0; i < 16; i++) {
-    for (int j = 0; j < 16; j++) {
-      int x = (i & 7) * 8;
-      int y = (i > 8 ? 16 : 0) + j;
-      uint8_t pixels = chip->displaybuffer[i][j];
-      for (int p = 7; p >= 0; p--) {
-        uint8_t bit = (pixels >> p) & 1;
-        if (bit == 1) {
-          int col = x + (8 - (p + 1));
-          printf("adding pixels: x: %d y: %d\n", x, y);
-          rects[recti].x = col * SCALE_PX;
-          rects[recti].y = y * SCALE_PX;
-          rects[recti].w = rects[recti].h = 1 * SCALE_PX;
-          recti++;
+  if (((opcode >> 12) & 0xF) == 0xD) {
+    int recti = 0;
+    for (int i = 0; i < 16; i++) {
+      for (int j = 0; j < 16; j++) {
+        int x = (i & 7) * 8;
+        int y = (i >= 8 ? 16 : 0) + j;
+        uint8_t pixels = chip->displaybuffer[i][j];
+        for (int p = 7; p >= 0; p--) {
+          uint8_t bit = (pixels >> p) & 1;
+          if (bit == 1) {
+            int col = x + (8 - (p + 1));
+            rects[recti].x = col * SCALE_PX;
+            rects[recti].y = y * SCALE_PX;
+            rects[recti].w = rects[recti].h = 1 * SCALE_PX;
+            recti++;
+          }
         }
       }
     }
   }
-  recti = 0;
 
   SDL_SetRenderDrawColor(renderer, 0, 255, 0, SDL_ALPHA_OPAQUE);
   SDL_RenderFillRects(renderer, rects, SDL_arraysize(rects));
