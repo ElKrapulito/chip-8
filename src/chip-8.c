@@ -56,7 +56,7 @@ uint16_t fixopposition(uint16_t val) {
   return ((val << 8) & 0xFF00 | (val >> 8) & 0xFF);
 }
 
-void loadfile(Chip8 *chip, char *path) {
+int loadfile(Chip8 *chip, char *path) {
   uint8_t *memlocation = &chip->memory[0x200];
   struct stat filestat;
   stat(path, &filestat);
@@ -69,13 +69,15 @@ void loadfile(Chip8 *chip, char *path) {
 
   if (fptr == NULL) {
     printf("file failed to open\n");
-    return;
+    return 1;
   }
-  size_t binary = fread(data, sizeof(uint8_t), filesize, fptr);
+  size_t binary = fread(data, sizeof(uint16_t), filesize, fptr);
 
   printf("file size is: %u bytes\n", (unsigned int)filestat.st_size);
 
-  for (int n = 0; n != filesize; ++n) {
+  uint32_t arrsize = sizeof(data) / sizeof(uint16_t);
+
+  for (int n = 0; n != (arrsize / 2) + (arrsize % 2); ++n) {
     uint16_t corrected = fixopposition(data[n]);
     printf("%04x\n", corrected);
     *memlocation = (corrected & 0xFF00) >> 8;
@@ -85,8 +87,11 @@ void loadfile(Chip8 *chip, char *path) {
     printf("second byte code: %02x\n", *memlocation);
     memlocation++;
   }
-  printf("\n");
+
+  printf("[FILE] closing file\n");
+  printf("[FILE] array size: %d\n", arrsize);
   fclose(fptr);
+  return 0;
 }
 
 Chip8 *createChip() {
@@ -95,10 +100,14 @@ Chip8 *createChip() {
 }
 
 Chip8 *initializeChip(char *filepath) {
-	Chip8 *chip = createChip();
-	loadfonts(chip);
-	loadfile(chip, filepath);
-	chip->pc = 0x200;
-	chip->stcount = 0;
-	return chip;
+  Chip8 *chip = createChip();
+  chip->pc = 0x200;
+  chip->stcount = 0;
+
+  loadfonts(chip);
+  if (loadfile(chip, filepath) != 0) {
+    free(chip);
+    chip = NULL;
+  }
+  return chip;
 }

@@ -1,7 +1,9 @@
 #include "opcodes.h"
 #include "common.h"
+#include "keyboard.h"
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 uint16_t fetch(Chip8 *chip) {
   uint16_t *firstbyte = (uint16_t *)&chip->memory[chip->pc];
@@ -19,7 +21,7 @@ void handlezero(Chip8 *chip, uint16_t opcode) {
         chip->displaybuffer[i][j] = 0;
       }
     }
-    printf("[%04x] clear display!\n");
+    printf("[%04x] clear display!\n", opcode);
     break;
   case 0x00ee:
     printf("[%04x] current stack count: %d\n", opcode, chip->stcount);
@@ -73,7 +75,7 @@ void handlesix(Chip8 *chip, uint16_t opcode) {
   uint8_t reg = (opcode >> 8) & 0xF;
   uint8_t value = opcode & 0xFF;
   chip->v[reg] = value;
-  printf("[%04x] set register: V%d = %d\n", opcode, reg, value);
+  printf("[%0x] set register: V%d = %d\n", opcode, reg, value);
 }
 
 void handleseven(Chip8 *chip, uint16_t opcode) {
@@ -87,6 +89,7 @@ void handleseven(Chip8 *chip, uint16_t opcode) {
 void handleeight(Chip8 *chip, uint16_t opcode) {
   uint8_t reg1 = (opcode >> 8) & 0xF;
   uint8_t reg2 = (opcode >> 4) & 0xF;
+  uint16_t result;
   switch (opcode & 0xF00F) {
   case 0x8000:
     chip->v[reg1] = chip->v[reg2];
@@ -101,35 +104,27 @@ void handleeight(Chip8 *chip, uint16_t opcode) {
     chip->v[reg1] ^= chip->v[reg2];
     break;
   case 0x8004:
-    if (chip->v[reg1] + chip->v[reg2] < chip->v[reg1]) {
-      chip->v[0xF] = 1;
-    }
-    chip->v[reg1] += chip->v[reg2];
-    chip->v[0xF] = 0;
+    result = chip->v[reg1] + chip->v[reg2];
+    chip->v[reg1] = result;
+    chip->v[0xF] = result >> 8;
     break;
   case 0x8005:
-    if (chip->v[reg1] > chip->v[reg2]) {
-      chip->v[0xf] = 1;
-    } else {
-      chip->v[0xf] = 0;
-    }
-    chip->v[reg1] -= chip->v[reg2];
+    result = chip->v[reg1] - chip->v[reg2];
+    chip->v[reg1] = result;
+    chip->v[0xF] = result > 255 ? 0 : 1;
     break;
   case 0x8006:
-    chip->v[0xf] = chip->v[reg1] & 1;
-    chip->v[reg1] = chip->v[reg1] >> 1;
+    chip->v[0xF] = chip->v[reg1] & 1;
+    chip->v[reg1] >>= 1;
     break;
   case 0x8007:
-    if (chip->v[reg2] > chip->v[reg1]) {
-      chip->v[0xf] = 1;
-    } else {
-      chip->v[0xf] = 0;
-    }
-    chip->v[reg1] = chip->v[reg2] - chip->v[reg1];
+    result = chip->v[reg2] - chip->v[reg1];
+    chip->v[reg1] = result;
+    chip->v[0xF] = result > 255 ? 0 : 1;
     break;
   case 0x800e:
-    chip->v[0xf] = (chip->v[reg1] >> 7) & 1;
-    chip->v[reg1] = chip->v[reg1] << 1;
+    chip->v[0xF] = (chip->v[reg1] >> 7) & 1;
+    chip->v[reg1] <<= 1;
     break;
   }
 }
@@ -149,6 +144,17 @@ void handleA(Chip8 *chip, uint16_t opcode) {
   printf("[%04x] set index = %04x\n", opcode, value);
 }
 
+void handleB(Chip8 *chip, uint16_t opcode) {
+  chip->pc = chip->v[0] + (opcode & 0xFFF);
+}
+
+void handleC(Chip8 *chip, uint16_t opcode) {
+  int value = opcode & 0xFF;
+  int reg = (opcode >> 8) & 0xF;
+  int random = (rand() + 1u) % value;
+  chip->v[reg] = random;
+}
+
 void handleD(Chip8 *chip, uint16_t opcode) {
   uint8_t reg1 = (opcode >> 8) & 0xF;
   uint8_t reg2 = (opcode >> 4) & 0xF;
@@ -165,7 +171,7 @@ void handleD(Chip8 *chip, uint16_t opcode) {
 
   for (int i = 0; i < rows; i++) {
     uint8_t row = (coordY + i) & 15;
-    uint8_t bottom = (coordY + i) < 15 ? 0 : 8;
+    uint8_t bottom = (coordY + i) < 16 ? 0 : 8;
     uint8_t column = (coordX >> 3) + bottom;
     uint8_t colshift = coordX & 7;
 
@@ -182,6 +188,22 @@ void handleD(Chip8 *chip, uint16_t opcode) {
     if (chip->displaybuffer[column][row] << colshift != pixels << colshift) {
       chip->v[0xF] = 1;
     }
+  }
+}
+
+void handleE(Chip8 *chip, uint16_t opcode) {
+  uint8_t vx = chip->v[opcode >> 8 & 0xF];
+  switch (opcode & 0xF0FF) {
+  case 0xe09e:
+    if (iskeypress(chip, vx)) {
+      chip->pc += 2;
+    }
+    break;
+  case 0xe0a1:
+    if (!iskeypress(chip, vx)) {
+      chip->pc += 2;
+    }
+    break;
   }
 }
 
@@ -261,6 +283,15 @@ void decode(Chip8 *chip, uint16_t opcode) {
     break;
   case 0xa:
     handleA(chip, opcode);
+    break;
+  case 0xb:
+    handleB(chip, opcode);
+    break;
+  case 0xc:
+    handleC(chip, opcode);
+    break;
+  case 0xe:
+    handleE(chip, opcode);
     break;
   case 0xd:
     handleD(chip, opcode);

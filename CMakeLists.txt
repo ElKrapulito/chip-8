@@ -13,6 +13,7 @@ add_executable(chip8 WIN32 src/display.c)
 target_sources(chip8
 	PRIVATE
 		src/chip-8.c
+		src/keyboard.c
 		src/opcodes.c
 )
 

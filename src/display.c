@@ -1,9 +1,11 @@
+#include <SDL3/SDL_events.h>
 #include <SDL3/SDL_init.h>
 #define SDL_MAIN_USE_CALLBACKS 1
 #define BYTE_SIZE 8
 
 #include "chip-8.h"
 #include "common.h"
+#include "keyboard.h"
 #include "opcodes.h"
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
@@ -42,24 +44,38 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
 
   last_time = SDL_GetTicks();
 
-  //if (argc < 2) {
-  //  printf("rom args < 2: %s\n", argv[0]);
-  //  return SDL_APP_FAILURE;
-  //}
-  //if (argc > 1) {
-  //  printf("rom args > 1: %s %s\n", argv[0], argv[1]);
-  //  return SDL_APP_FAILURE;
-  //}
   printf("rom route: %s\n", argv[1]);
   chip = initializeChip(argv[1]);
+
+  if (chip == NULL) {
+    SDL_Log("failed to initialize chip: %s", SDL_GetError());
+    return SDL_APP_FAILURE;
+  }
 
   return SDL_APP_CONTINUE;
 }
 
 SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event) {
-  if (event->type == SDL_EVENT_QUIT) {
+  uint8_t chipkey;
+  switch (event->type) {
+  case SDL_EVENT_KEY_DOWN:
+    chipkey = mapkeycode(event->key.scancode);
+    printf("[EVENT] key pressed: %d chip key: %d\n", event->key.scancode,
+           chipkey);
+    keydown(chip, event->key.scancode);
+    break;
+  case SDL_EVENT_KEY_UP:
+    chipkey = mapkeycode(event->key.scancode);
+    printf("[EVENT] key released: %d chip key: %d\n", event->key.scancode,
+           chipkey);
+    keyup(chip, event->key.scancode);
+    break;
+  case SDL_EVENT_QUIT:
+    free(chip);
+    chip = NULL;
     return SDL_APP_SUCCESS;
   }
+
   return SDL_APP_CONTINUE;
 }
 
