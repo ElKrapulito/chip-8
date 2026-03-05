@@ -16,8 +16,8 @@ uint16_t fetch(Chip8 *chip) {
 void handlezero(Chip8 *chip, uint16_t opcode) {
   switch (opcode) {
   case 0x00e0:
-    for (int i = 0; i < 0; i++) {
-      for (int j = 0; j < 0; j++) {
+    for (int i = 0; i < 16; i++) {
+      for (int j = 0; j < 16; j++) {
         chip->displaybuffer[i][j] = 0;
       }
     }
@@ -32,6 +32,9 @@ void handlezero(Chip8 *chip, uint16_t opcode) {
            chip->stack[chip->stcount]);
     chip->stack[chip->stcount] = 0;
     break;
+  default:
+    printf("[%04x]*** operation not handle ***\n", opcode);
+    return;
   }
 }
 
@@ -75,15 +78,15 @@ void handlesix(Chip8 *chip, uint16_t opcode) {
   uint8_t reg = (opcode >> 8) & 0xF;
   uint8_t value = opcode & 0xFF;
   chip->v[reg] = value;
-  printf("[%0x] set register: V%d = %d\n", opcode, reg, value);
+  // printf("[%0x] set register: V%d = %d\n", opcode, reg, value);
 }
 
 void handleseven(Chip8 *chip, uint16_t opcode) {
   uint8_t reg = (opcode >> 8) & 0xF;
   uint8_t val = opcode & 0xFF;
-  printf("[%04x] reg V%d: %d + %d\n", opcode, reg, chip->v[reg], val);
+  // printf("[%04x] reg V%d: %d + %d\n", opcode, reg, chip->v[reg], val);
   chip->v[reg] += val;
-  printf("[%04x] reg V%d: %d\n", opcode, reg, chip->v[reg]);
+  // printf("[%04x] reg V%d: %d\n", opcode, reg, chip->v[reg]);
 }
 
 void handleeight(Chip8 *chip, uint16_t opcode) {
@@ -126,6 +129,9 @@ void handleeight(Chip8 *chip, uint16_t opcode) {
     chip->v[0xF] = (chip->v[reg1] >> 7) & 1;
     chip->v[reg1] <<= 1;
     break;
+  default:
+    printf("[%04x]*** operation not handle ***\n", opcode);
+    return;
   }
 }
 
@@ -145,7 +151,8 @@ void handleA(Chip8 *chip, uint16_t opcode) {
 }
 
 void handleB(Chip8 *chip, uint16_t opcode) {
-  chip->pc = chip->v[0] + (opcode & 0xFFF);
+  uint8_t X = (opcode >> 8) & 0xF;
+  chip->pc = chip->v[X] + (opcode & 0xFFF);
 }
 
 void handleC(Chip8 *chip, uint16_t opcode) {
@@ -177,17 +184,23 @@ void handleD(Chip8 *chip, uint16_t opcode) {
 
     pixels = chip->memory[chip->i + i];
     chip->displaybuffer[column][row] ^= pixels >> colshift;
+    uint8_t pixchange;
     if (colshift > 0) {
       uint8_t newpix = pixels << (8 - colshift);
       chip->displaybuffer[column + 1][row] ^= newpix;
-      if (chip->displaybuffer[column + 1][row] >> (8 - colshift) !=
-          newpix >> (8 - colshift)) {
-        chip->v[0xF] = 1;
-      }
+      // if (chip->displaybuffer[column + 1][row] >> (8 - colshift) !=
+      //     newpix >> (8 - colshift)) {
+      //   chip->v[0xF] = 1;
+      // }
     }
-    if (chip->displaybuffer[column][row] << colshift != pixels << colshift) {
+    pixchange = chip->displaybuffer[column][row] << colshift |
+                chip->displaybuffer[column + 1][row] >> (8 - colshift);
+    if (pixels != pixchange) {
       chip->v[0xF] = 1;
     }
+    // if (chip->displaybuffer[column][row] << colshift != pixels << colshift) {
+    //   chip->v[0xF] = 1;
+    // }
   }
 }
 
@@ -197,11 +210,13 @@ void handleE(Chip8 *chip, uint16_t opcode) {
   case 0xe09e:
     if (iskeypress(chip, vx)) {
       chip->pc += 2;
+      // printf("[%04x] skiping in key pressed %x\n", opcode, vx);
     }
     break;
   case 0xe0a1:
     if (!iskeypress(chip, vx)) {
       chip->pc += 2;
+      // printf("[%04x] skiping in key not pressed %x\n", opcode, vx);
     }
     break;
   }
@@ -215,15 +230,30 @@ void handleF(Chip8 *chip, uint16_t opcode) {
   uint16_t unit;
 
   switch (opcode & 0xF0FF) {
-  case 0xf065:
-    for (int i = 0; i <= value; i++) {
-      chip->v[i] = chip->memory[chip->i + i];
+  case 0xf007:
+    chip->v[value] = chip->delay;
+    break;
+  case 0xf00a:
+    if (chip->keycurrent <= 0xf) {
+      chip->v[value] = chip->keycurrent - 1;
+    } else {
+      chip->pc -= 2;
     }
     break;
-  case 0xf055:
-    for (int i = 0; i <= value; i++) {
-      chip->memory[chip->i + i] = chip->v[i];
+  case 0xf015:
+    chip->delay = chip->v[value];
+    break;
+  case 0xf018:
+    chip->sound_t = chip->v[value];
+    break;
+  case 0xf01e:
+    chip->i += chip->v[value];
+    if (chip->i > 0xFFF) {
+      chip->v[0xf] = 1;
     }
+    break;
+  case 0xf029:
+    chip->i = 0x50 + (chip->v[value] & 0xf) * 5;
     break;
   case 0xf033:
     val = chip->v[value];
@@ -235,10 +265,14 @@ void handleF(Chip8 *chip, uint16_t opcode) {
     chip->memory[chip->i + 1] = ten;
     chip->memory[chip->i + 2] = unit;
     break;
-  case 0xf01e:
-    chip->i += chip->v[value];
-    if (chip->i > 0xFFF) {
-      chip->v[0xf] = 1;
+  case 0xf055:
+    for (int i = 0; i <= value; i++) {
+      chip->memory[chip->i + i] = chip->v[i];
+    }
+    break;
+  case 0xf065:
+    for (int i = 0; i <= value; i++) {
+      chip->v[i] = chip->memory[chip->i + i];
     }
     break;
   default:
@@ -249,7 +283,6 @@ void handleF(Chip8 *chip, uint16_t opcode) {
 
 void decode(Chip8 *chip, uint16_t opcode) {
   uint16_t firstnibble = (opcode & 0xF000) >> 12;
-
   switch (firstnibble) {
   case 0:
     handlezero(chip, opcode);

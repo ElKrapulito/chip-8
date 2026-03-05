@@ -10,6 +10,7 @@ typedef struct Chip8 {
 	uint8_t sound_t;
 	uint8_t displaybuffer [16][16];
 	uint8_t keyboard[16];
+	uint8_t keycurrent;
 	uint16_t pc;
 	uint16_t i;
 	uint16_t stack[16];

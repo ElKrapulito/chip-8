@@ -17,9 +17,9 @@
 #define KEY_F 9
 
 #define KEY_Z 29
-#define KEY_X 27 
+#define KEY_X 27
 #define KEY_C 6
-#define KEY_V 25 
+#define KEY_V 25
 
 uint8_t mapkeycode(uint8_t keycode) {
   switch (keycode) {
@@ -61,10 +61,18 @@ uint8_t mapkeycode(uint8_t keycode) {
 }
 
 void keydown(Chip8 *chip, uint8_t keycode) {
-  chip->keyboard[keycode] = keycode;
+  if (keycode <= 0xf) {
+    chip->keyboard[keycode] = keycode;
+    chip->keycurrent = keycode;
+  }
 }
 
-void keyup(Chip8 *chip, uint8_t keycode) { chip->keyboard[keycode] = 0; }
+void keyup(Chip8 *chip, uint8_t keycode) {
+  if (keycode <= 0xf) {
+    chip->keyboard[keycode] = UINT8_MAX;
+    chip->keycurrent = UINT8_MAX;
+  }
+}
 
 bool iskeypress(Chip8 *chip, uint8_t keycode) {
   return chip->keyboard[keycode] == keycode;

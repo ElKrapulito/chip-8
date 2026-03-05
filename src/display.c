@@ -18,6 +18,7 @@ static SDL_Window *window = NULL;
 static SDL_Renderer *renderer = NULL;
 static Chip8 *chip = NULL;
 static Uint64 last_time = 0;
+static float frequency = 1000.0f / 60.0f;
 
 #define WINDOWS_WIDTH 64
 #define WINDOWS_HEIGHT 32
@@ -62,13 +63,13 @@ SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event) {
     chipkey = mapkeycode(event->key.scancode);
     printf("[EVENT] key pressed: %d chip key: %d\n", event->key.scancode,
            chipkey);
-    keydown(chip, event->key.scancode);
+    keydown(chip, chipkey);
     break;
   case SDL_EVENT_KEY_UP:
     chipkey = mapkeycode(event->key.scancode);
     printf("[EVENT] key released: %d chip key: %d\n", event->key.scancode,
            chipkey);
-    keyup(chip, event->key.scancode);
+    keyup(chip, chipkey);
     break;
   case SDL_EVENT_QUIT:
     free(chip);
@@ -83,14 +84,28 @@ uint16_t opcode;
 SDL_FRect rects[2048];
 
 SDL_AppResult SDL_AppIterate(void *appstate) {
-  // const Uint64 now = SDL_GetTicks();
-  // const float elapsed = ((float)(now - last_time)) / 1000.0f;
+  const float now = SDL_GetTicks();
+
+  if (now > last_time + frequency) {
+    last_time = now;
+    if (chip->delay > 0) {
+      chip->delay--;
+    }
+    if (chip->sound_t > 0) {
+      chip->sound_t--;
+    }
+  }
 
   opcode = fetch(chip);
   decode(chip, opcode);
 
   SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
   SDL_RenderClear(renderer);
+  if (opcode == 0x00e0) {
+    for (int i = 0; i < 2048; i++) {
+      rects[i].x = rects[i].y = rects[i].w = rects[i].h = 0;
+    }
+  }
 
   if (((opcode >> 12) & 0xF) == 0xD) {
     int recti = 0;
@@ -117,7 +132,6 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
   SDL_RenderFillRects(renderer, rects, SDL_arraysize(rects));
 
   SDL_RenderPresent(renderer);
-  // last_time = now;
 
   return SDL_APP_CONTINUE;
 }

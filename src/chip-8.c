@@ -103,6 +103,11 @@ Chip8 *initializeChip(char *filepath) {
   Chip8 *chip = createChip();
   chip->pc = 0x200;
   chip->stcount = 0;
+  chip->keycurrent = UINT8_MAX;
+
+  for (int i = 0; i <= 0xf; i++) {
+    chip->keyboard[i] = UINT8_MAX;
+  }
 
   loadfonts(chip);
   if (loadfile(chip, filepath) != 0) {
