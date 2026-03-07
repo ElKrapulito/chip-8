@@ -16,3 +16,15 @@ typedef struct Chip8 {
 	uint16_t stack[16];
 } Chip8;
 #endif
+
+#define CHIP8
+#ifdef SUPER_CHIP
+#define BNNN_QUIRK
+#endif
+
+#ifdef CHIP8
+#define VF_RESET
+#define MEMORY
+#define SHIFTING
+#endif
+

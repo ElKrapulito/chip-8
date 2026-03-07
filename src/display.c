@@ -1,3 +1,4 @@
+#include <SDL3/SDL_audio.h>
 #include <SDL3/SDL_events.h>
 #include <SDL3/SDL_init.h>
 #define SDL_MAIN_USE_CALLBACKS 1
@@ -19,15 +20,18 @@ static SDL_Renderer *renderer = NULL;
 static Chip8 *chip = NULL;
 static Uint64 last_time = 0;
 static float frequency = 1000.0f / 60.0f;
+static SDL_AudioStream *stream = NULL;
+static int current_sine_sample = 0;
 
 #define WINDOWS_WIDTH 64
 #define WINDOWS_HEIGHT 32
 #define SCALE_PX 5
 
 SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
+  SDL_AudioSpec spec;
   SDL_SetAppMetadata("Chip8", "1.0", "com.chip8");
 
-  if (!SDL_Init(SDL_INIT_VIDEO)) {
+  if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO)) {
     SDL_Log("Couldn't start window: %s", SDL_GetError());
     return SDL_APP_FAILURE;
   }
@@ -43,7 +47,16 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
                                    WINDOWS_HEIGHT * SCALE_PX,
                                    SDL_LOGICAL_PRESENTATION_LETTERBOX);
 
-  last_time = SDL_GetTicks();
+  spec.channels = 1;
+  spec.format = SDL_AUDIO_F32;
+  spec.freq = 2000;
+  stream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec,
+                                     NULL, NULL);
+  if (!stream) {
+    SDL_Log("Couldn't create audio stream: %s", SDL_GetError());
+    return SDL_APP_FAILURE;
+  }
+  SDL_ResumeAudioStreamDevice(stream);
 
   printf("rom route: %s\n", argv[1]);
   chip = initializeChip(argv[1]);
@@ -53,6 +66,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
     return SDL_APP_FAILURE;
   }
 
+  last_time = SDL_GetTicks();
   return SDL_APP_CONTINUE;
 }
 
@@ -93,6 +107,23 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
     }
     if (chip->sound_t > 0) {
       chip->sound_t--;
+
+      static float samples[512];
+      int i;
+
+      /* generate a 440Hz pure tone */
+      for (i = 0; i < SDL_arraysize(samples); i++) {
+        const int freq = 440;
+        const float phase = current_sine_sample * freq / 2000.0f;
+        samples[i] = SDL_sinf(phase * 2 * SDL_PI_F);
+        current_sine_sample++;
+      }
+
+      current_sine_sample %= 2000;
+
+      SDL_PutAudioStreamData(stream, samples, sizeof(samples));
+    } else {
+      SDL_ClearAudioStream(stream);
     }
   }
 

@@ -5,6 +5,19 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+//#define CHIP8
+//
+//#ifdef SUPER_CHIP
+//#define BNNN_QUIRK
+//#endif
+//
+//#ifdef CHIP8
+//#define VF_RESET
+//#define MEMORY
+//#define SHIFTING
+//#endif
+
+
 uint16_t fetch(Chip8 *chip) {
   uint16_t *firstbyte = (uint16_t *)&chip->memory[chip->pc];
   uint16_t *secondbyte = (uint16_t *)&chip->memory[chip->pc + 1];
@@ -78,15 +91,12 @@ void handlesix(Chip8 *chip, uint16_t opcode) {
   uint8_t reg = (opcode >> 8) & 0xF;
   uint8_t value = opcode & 0xFF;
   chip->v[reg] = value;
-  // printf("[%0x] set register: V%d = %d\n", opcode, reg, value);
 }
 
 void handleseven(Chip8 *chip, uint16_t opcode) {
   uint8_t reg = (opcode >> 8) & 0xF;
   uint8_t val = opcode & 0xFF;
-  // printf("[%04x] reg V%d: %d + %d\n", opcode, reg, chip->v[reg], val);
   chip->v[reg] += val;
-  // printf("[%04x] reg V%d: %d\n", opcode, reg, chip->v[reg]);
 }
 
 void handleeight(Chip8 *chip, uint16_t opcode) {
@@ -99,12 +109,21 @@ void handleeight(Chip8 *chip, uint16_t opcode) {
     break;
   case 0x8001:
     chip->v[reg1] |= chip->v[reg2];
+#ifdef VF_RESET
+    chip->v[0xf] = 0;
+#endif
     break;
   case 0x8002:
     chip->v[reg1] &= chip->v[reg2];
+#ifdef VF_RESET
+    chip->v[0xf] = 0;
+#endif
     break;
   case 0x8003:
     chip->v[reg1] ^= chip->v[reg2];
+#ifdef VF_RESET
+    chip->v[0xf] = 0;
+#endif
     break;
   case 0x8004:
     result = chip->v[reg1] + chip->v[reg2];
@@ -117,6 +136,9 @@ void handleeight(Chip8 *chip, uint16_t opcode) {
     chip->v[0xF] = result > 255 ? 0 : 1;
     break;
   case 0x8006:
+#ifdef SHIFTING
+    chip->v[reg1] = chip->v[reg2];
+#endif
     chip->v[0xF] = chip->v[reg1] & 1;
     chip->v[reg1] >>= 1;
     break;
@@ -126,6 +148,9 @@ void handleeight(Chip8 *chip, uint16_t opcode) {
     chip->v[0xF] = result > 255 ? 0 : 1;
     break;
   case 0x800e:
+#ifdef SHIFTING
+    chip->v[reg1] = chip->v[reg2];
+#endif
     chip->v[0xF] = (chip->v[reg1] >> 7) & 1;
     chip->v[reg1] <<= 1;
     break;
@@ -150,10 +175,19 @@ void handleA(Chip8 *chip, uint16_t opcode) {
   printf("[%04x] set index = %04x\n", opcode, value);
 }
 
+#ifdef BNNN_QUIRK
 void handleB(Chip8 *chip, uint16_t opcode) {
   uint8_t X = (opcode >> 8) & 0xF;
   chip->pc = chip->v[X] + (opcode & 0xFFF);
 }
+#endif
+
+#ifndef BNNN_QUIRK
+void handleB(Chip8 *chip, uint16_t opcode) {
+  uint8_t X = (opcode >> 8) & 0xF;
+  chip->pc = chip->v[0] + (opcode & 0xFFF);
+}
+#endif
 
 void handleC(Chip8 *chip, uint16_t opcode) {
   int value = opcode & 0xFF;
@@ -188,19 +222,12 @@ void handleD(Chip8 *chip, uint16_t opcode) {
     if (colshift > 0) {
       uint8_t newpix = pixels << (8 - colshift);
       chip->displaybuffer[column + 1][row] ^= newpix;
-      // if (chip->displaybuffer[column + 1][row] >> (8 - colshift) !=
-      //     newpix >> (8 - colshift)) {
-      //   chip->v[0xF] = 1;
-      // }
     }
     pixchange = chip->displaybuffer[column][row] << colshift |
                 chip->displaybuffer[column + 1][row] >> (8 - colshift);
     if (pixels != pixchange) {
       chip->v[0xF] = 1;
     }
-    // if (chip->displaybuffer[column][row] << colshift != pixels << colshift) {
-    //   chip->v[0xF] = 1;
-    // }
   }
 }
 
@@ -210,13 +237,11 @@ void handleE(Chip8 *chip, uint16_t opcode) {
   case 0xe09e:
     if (iskeypress(chip, vx)) {
       chip->pc += 2;
-      // printf("[%04x] skiping in key pressed %x\n", opcode, vx);
     }
     break;
   case 0xe0a1:
     if (!iskeypress(chip, vx)) {
       chip->pc += 2;
-      // printf("[%04x] skiping in key not pressed %x\n", opcode, vx);
     }
     break;
   }
@@ -269,11 +294,17 @@ void handleF(Chip8 *chip, uint16_t opcode) {
     for (int i = 0; i <= value; i++) {
       chip->memory[chip->i + i] = chip->v[i];
     }
+#ifdef MEMORY
+    chip->i += value + 1;
+#endif
     break;
   case 0xf065:
     for (int i = 0; i <= value; i++) {
       chip->v[i] = chip->memory[chip->i + i];
     }
+#ifdef MEMORY
+    chip->i += value + 1;
+#endif
     break;
   default:
     printf("[%04x]*** operation not handle ***\n", opcode);
