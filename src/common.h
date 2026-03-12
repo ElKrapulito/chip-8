@@ -18,6 +18,7 @@ typedef struct Chip8 {
 #endif
 
 #define CHIP8
+//#define SUPER_CHIP
 #ifdef SUPER_CHIP
 #define BNNN_QUIRK
 #endif

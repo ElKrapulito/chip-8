@@ -5,18 +5,17 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-//#define CHIP8
+// #define CHIP8
 //
-//#ifdef SUPER_CHIP
-//#define BNNN_QUIRK
-//#endif
+// #ifdef SUPER_CHIP
+// #define BNNN_QUIRK
+// #endif
 //
-//#ifdef CHIP8
-//#define VF_RESET
-//#define MEMORY
-//#define SHIFTING
-//#endif
-
+// #ifdef CHIP8
+// #define VF_RESET
+// #define MEMORY
+// #define SHIFTING
+// #endif
 
 uint16_t fetch(Chip8 *chip) {
   uint16_t *firstbyte = (uint16_t *)&chip->memory[chip->pc];
@@ -103,6 +102,7 @@ void handleeight(Chip8 *chip, uint16_t opcode) {
   uint8_t reg1 = (opcode >> 8) & 0xF;
   uint8_t reg2 = (opcode >> 4) & 0xF;
   uint16_t result;
+  uint8_t carry;
   switch (opcode & 0xF00F) {
   case 0x8000:
     chip->v[reg1] = chip->v[reg2];
@@ -139,8 +139,9 @@ void handleeight(Chip8 *chip, uint16_t opcode) {
 #ifdef SHIFTING
     chip->v[reg1] = chip->v[reg2];
 #endif
-    chip->v[0xF] = chip->v[reg1] & 1;
+    carry = chip->v[reg1] & 1;
     chip->v[reg1] >>= 1;
+    chip->v[0xF] = carry;
     break;
   case 0x8007:
     result = chip->v[reg2] - chip->v[reg1];
@@ -151,8 +152,9 @@ void handleeight(Chip8 *chip, uint16_t opcode) {
 #ifdef SHIFTING
     chip->v[reg1] = chip->v[reg2];
 #endif
-    chip->v[0xF] = (chip->v[reg1] >> 7) & 1;
-    chip->v[reg1] <<= 1;
+    carry = chip->v[reg1] >> 7;
+    chip->v[reg1] = chip->v[reg1] << 1;
+    chip->v[0xf] = carry;
     break;
   default:
     printf("[%04x]*** operation not handle ***\n", opcode);
@@ -212,22 +214,35 @@ void handleD(Chip8 *chip, uint16_t opcode) {
 
   for (int i = 0; i < rows; i++) {
     uint8_t row = (coordY + i) & 15;
-    uint8_t bottom = (coordY + i) < 16 ? 0 : 8;
+    uint8_t bottom = ((coordY + i) & 31) < 16 ? 0 : 8;
     uint8_t column = (coordX >> 3) + bottom;
     uint8_t colshift = coordX & 7;
 
     pixels = chip->memory[chip->i + i];
     chip->displaybuffer[column][row] ^= pixels >> colshift;
     uint8_t pixchange;
+    uint8_t otherx = column;
     if (colshift > 0) {
       uint8_t newpix = pixels << (8 - colshift);
-      chip->displaybuffer[column + 1][row] ^= newpix;
+      otherx = ((column + 1) & 7) + bottom;
+      chip->displaybuffer[otherx][row] ^= newpix;
     }
-    pixchange = chip->displaybuffer[column][row] << colshift |
-                chip->displaybuffer[column + 1][row] >> (8 - colshift);
-    if (pixels != pixchange) {
-      chip->v[0xF] = 1;
+    if (colshift > 0) {
+      pixchange = chip->displaybuffer[column][row] << colshift |
+                  chip->displaybuffer[otherx][row] >> (8 - colshift);
+    } else {
+      pixchange = chip->displaybuffer[column][row];
     }
+
+    int16_t result = pixels - pixchange;
+
+    if (result > 0) {
+        chip->v[0xf] = 1;
+    } 
+
+    //if (pixels != pixchange) {
+    //  chip->v[0xF] = 1;
+    //}
   }
 }
 

@@ -20,6 +20,8 @@ static SDL_Renderer *renderer = NULL;
 static Chip8 *chip = NULL;
 static Uint64 last_time = 0;
 static float frequency = 1000.0f / 60.0f;
+static float opfrequency = 1000.0f / 700.0f;
+static uint64_t oplast = 0;
 static SDL_AudioStream *stream = NULL;
 static int current_sine_sample = 0;
 
@@ -67,6 +69,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
   }
 
   last_time = SDL_GetTicks();
+  oplast = SDL_GetTicks();
   return SDL_APP_CONTINUE;
 }
 
@@ -111,7 +114,6 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
       static float samples[512];
       int i;
 
-      /* generate a 440Hz pure tone */
       for (i = 0; i < SDL_arraysize(samples); i++) {
         const int freq = 440;
         const float phase = current_sine_sample * freq / 2000.0f;
@@ -127,32 +129,40 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
     }
   }
 
-  opcode = fetch(chip);
-  decode(chip, opcode);
-
   SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
   SDL_RenderClear(renderer);
-  if (opcode == 0x00e0) {
-    for (int i = 0; i < 2048; i++) {
-      rects[i].x = rects[i].y = rects[i].w = rects[i].h = 0;
-    }
-  }
 
-  if (((opcode >> 12) & 0xF) == 0xD) {
-    int recti = 0;
-    for (int i = 0; i < 16; i++) {
-      for (int j = 0; j < 16; j++) {
-        int x = (i & 7) * 8;
-        int y = (i >= 8 ? 16 : 0) + j;
-        uint8_t pixels = chip->displaybuffer[i][j];
-        for (int p = 7; p >= 0; p--) {
-          uint8_t bit = (pixels >> p) & 1;
-          if (bit == 1) {
-            int col = x + (8 - (p + 1));
-            rects[recti].x = col * SCALE_PX;
-            rects[recti].y = y * SCALE_PX;
-            rects[recti].w = rects[recti].h = 1 * SCALE_PX;
-            recti++;
+  if (now > oplast + opfrequency) {
+    oplast = now;
+    opcode = fetch(chip);
+    decode(chip, opcode);
+
+    if (opcode == 0x00e0) {
+      for (int i = 0; i < SDL_arraysize(rects); i++) {
+        rects[i].x = rects[i].y = rects[i].w = rects[i].h = 0;
+      }
+    }
+
+    if (((opcode >> 12) & 0xF) == 0xD) {
+      for (int i = 0; i < SDL_arraysize(rects); i++) {
+        rects[i].x = rects[i].y = rects[i].w = rects[i].h = 0;
+      }
+
+      int recti = 0;
+      for (int i = 0; i < 16; i++) {
+        for (int j = 0; j < 16; j++) {
+          int x = (i & 7) * 8;
+          int y = (i >= 8 ? 16 : 0) + j;
+          uint8_t pixels = chip->displaybuffer[i][j];
+          for (int p = 7; p >= 0; p--) {
+            uint8_t bit = (pixels >> p) & 1;
+            if (bit == 1) {
+              int col = x + (8 - (p + 1));
+              rects[recti].x = col * SCALE_PX;
+              rects[recti].y = y * SCALE_PX;
+              rects[recti].w = rects[recti].h = 1 * SCALE_PX;
+              recti++;
+            }
           }
         }
       }
