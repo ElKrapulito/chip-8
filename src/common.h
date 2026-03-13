@@ -1,6 +1,7 @@
 #ifndef COMMON_H
 #define COMMON_H
 #include <stdint.h>
+#include "config.h"
 
 typedef struct Chip8 {
 	uint8_t stcount;
@@ -14,18 +15,7 @@ typedef struct Chip8 {
 	uint16_t pc;
 	uint16_t i;
 	uint16_t stack[16];
+    Config *config;
 } Chip8;
-#endif
-
-#define CHIP8
-//#define SUPER_CHIP
-#ifdef SUPER_CHIP
-#define BNNN_QUIRK
-#endif
-
-#ifdef CHIP8
-#define VF_RESET
-#define MEMORY
-#define SHIFTING
 #endif
 

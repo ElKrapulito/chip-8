@@ -1,4 +1,5 @@
 #include "chip-8.h"
+#include "config.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -99,11 +100,20 @@ Chip8 *createChip() {
   return chip;
 }
 
-Chip8 *initializeChip(char *filepath) {
+Chip8 *initializeChip(char *argv[]) {
+  char *filepath = argv[1];
+  char *config = argv[2];
+  char *super = "s";
+
   Chip8 *chip = createChip();
   chip->pc = 0x200;
   chip->stcount = 0;
   chip->keycurrent = UINT8_MAX;
+  if (config != NULL && *config == *super) {
+    chip->config = superchip();
+  } else {
+    chip->config = chip8();
+  }
 
   for (int i = 0; i <= 0xf; i++) {
     chip->keyboard[i] = UINT8_MAX;

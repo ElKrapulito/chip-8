@@ -5,18 +5,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-// #define CHIP8
-//
-// #ifdef SUPER_CHIP
-// #define BNNN_QUIRK
-// #endif
-//
-// #ifdef CHIP8
-// #define VF_RESET
-// #define MEMORY
-// #define SHIFTING
-// #endif
-
 uint16_t fetch(Chip8 *chip) {
   uint16_t *firstbyte = (uint16_t *)&chip->memory[chip->pc];
   uint16_t *secondbyte = (uint16_t *)&chip->memory[chip->pc + 1];
@@ -109,26 +97,26 @@ void handleeight(Chip8 *chip, uint16_t opcode) {
     break;
   case 0x8001:
     chip->v[reg1] |= chip->v[reg2];
-#ifdef VF_RESET
-    chip->v[0xf] = 0;
-#endif
+    if (chip->config->vf_reset) {
+      chip->v[0xf] = 0;
+    }
     break;
   case 0x8002:
     chip->v[reg1] &= chip->v[reg2];
-#ifdef VF_RESET
-    chip->v[0xf] = 0;
-#endif
+    if (chip->config->vf_reset) {
+      chip->v[0xf] = 0;
+    }
     break;
   case 0x8003:
     chip->v[reg1] ^= chip->v[reg2];
-#ifdef VF_RESET
-    chip->v[0xf] = 0;
-#endif
+    if (chip->config->vf_reset) {
+      chip->v[0xf] = 0;
+    }
     break;
   case 0x8004:
     result = chip->v[reg1] + chip->v[reg2];
     chip->v[reg1] = result;
-    chip->v[0xF] = result >> 8;
+    chip->v[0xF] = result > 255 ? 1 : 0;
     break;
   case 0x8005:
     result = chip->v[reg1] - chip->v[reg2];
@@ -136,9 +124,9 @@ void handleeight(Chip8 *chip, uint16_t opcode) {
     chip->v[0xF] = result > 255 ? 0 : 1;
     break;
   case 0x8006:
-#ifdef SHIFTING
-    chip->v[reg1] = chip->v[reg2];
-#endif
+    if (chip->config->shifting) {
+      chip->v[reg1] = chip->v[reg2];
+    }
     carry = chip->v[reg1] & 1;
     chip->v[reg1] >>= 1;
     chip->v[0xF] = carry;
@@ -149,9 +137,9 @@ void handleeight(Chip8 *chip, uint16_t opcode) {
     chip->v[0xF] = result > 255 ? 0 : 1;
     break;
   case 0x800e:
-#ifdef SHIFTING
-    chip->v[reg1] = chip->v[reg2];
-#endif
+    if (chip->config->shifting) {
+      chip->v[reg1] = chip->v[reg2];
+    }
     carry = chip->v[reg1] >> 7;
     chip->v[reg1] = chip->v[reg1] << 1;
     chip->v[0xf] = carry;
@@ -177,19 +165,14 @@ void handleA(Chip8 *chip, uint16_t opcode) {
   printf("[%04x] set index = %04x\n", opcode, value);
 }
 
-#ifdef BNNN_QUIRK
 void handleB(Chip8 *chip, uint16_t opcode) {
   uint8_t X = (opcode >> 8) & 0xF;
-  chip->pc = chip->v[X] + (opcode & 0xFFF);
+  if (chip->config->bnnn) {
+    chip->pc = chip->v[X] + (opcode & 0xFFF);
+  } else {
+    chip->pc = chip->v[0] + (opcode & 0xFFF);
+  }
 }
-#endif
-
-#ifndef BNNN_QUIRK
-void handleB(Chip8 *chip, uint16_t opcode) {
-  uint8_t X = (opcode >> 8) & 0xF;
-  chip->pc = chip->v[0] + (opcode & 0xFFF);
-}
-#endif
 
 void handleC(Chip8 *chip, uint16_t opcode) {
   int value = opcode & 0xFF;
@@ -199,6 +182,62 @@ void handleC(Chip8 *chip, uint16_t opcode) {
 }
 
 void handleD(Chip8 *chip, uint16_t opcode) {
+  uint8_t reg1 = (opcode >> 8) & 0xF;
+  uint8_t reg2 = (opcode >> 4) & 0xF;
+  uint8_t regVX = chip->v[reg1];
+  uint8_t regVY = chip->v[reg2];
+  printf("[%04x] VX: %d and VY: %d\n", opcode, regVX, regVY);
+  uint8_t coordX = regVX & 63;
+  uint8_t coordY = regVY & 31;
+  chip->v[0xF] = 0;
+  uint8_t rows = opcode & 0xF;
+  printf("[%04x] rows: %02x\n", opcode, rows);
+  printf("[%04x] index: %04x\n", opcode, chip->i);
+  uint8_t pixels;
+
+  for (int i = 0; i < rows; i++) {
+    if (coordY + i > 31) {
+      break;
+    }
+    uint8_t row = (coordY + i) & 15;
+    uint8_t bottom = (coordY + i) < 16 ? 0 : 8;
+    uint8_t column = (coordX >> 3) + bottom;
+    uint8_t colshift = coordX & 7;
+
+    pixels = chip->memory[chip->i + i];
+    chip->displaybuffer[column][row] ^= pixels >> colshift;
+    uint8_t pixchange;
+    uint8_t otherx = column;
+    if (colshift > 0) {
+      uint8_t newpix = pixels << (8 - colshift);
+      if (((column + 1) & 7) != 0) {
+        otherx = ((column + 1) & 7) + bottom;
+        chip->displaybuffer[otherx][row] ^= newpix;
+      }
+    }
+    if (colshift > 0) {
+      pixchange = otherx
+                      ? chip->displaybuffer[column][row] << colshift |
+                            chip->displaybuffer[otherx][row] >> (8 - colshift)
+                      : chip->displaybuffer[column][row] << colshift;
+    } else {
+      pixchange = chip->displaybuffer[column][row];
+    }
+
+    int16_t result;
+    if (!otherx) {
+      result = (pixels << colshift) - pixchange;
+    } else {
+      result = pixels - pixchange;
+    }
+
+    if (result > 0) {
+      chip->v[0xf] = 1;
+    }
+  }
+}
+
+void handleDnoclip(Chip8 *chip, uint16_t opcode) {
   uint8_t reg1 = (opcode >> 8) & 0xF;
   uint8_t reg2 = (opcode >> 4) & 0xF;
   uint8_t regVX = chip->v[reg1];
@@ -237,12 +276,8 @@ void handleD(Chip8 *chip, uint16_t opcode) {
     int16_t result = pixels - pixchange;
 
     if (result > 0) {
-        chip->v[0xf] = 1;
-    } 
-
-    //if (pixels != pixchange) {
-    //  chip->v[0xF] = 1;
-    //}
+      chip->v[0xf] = 1;
+    }
   }
 }
 
@@ -309,17 +344,17 @@ void handleF(Chip8 *chip, uint16_t opcode) {
     for (int i = 0; i <= value; i++) {
       chip->memory[chip->i + i] = chip->v[i];
     }
-#ifdef MEMORY
-    chip->i += value + 1;
-#endif
+    if (chip->config->memory_quirk) {
+      chip->i += value + 1;
+    }
     break;
   case 0xf065:
     for (int i = 0; i <= value; i++) {
       chip->v[i] = chip->memory[chip->i + i];
     }
-#ifdef MEMORY
-    chip->i += value + 1;
-#endif
+    if (chip->config->memory_quirk) {
+      chip->i += value + 1;
+    }
     break;
   default:
     printf("[%04x]*** operation not handle ***\n", opcode);
@@ -373,7 +408,11 @@ void decode(Chip8 *chip, uint16_t opcode) {
     handleE(chip, opcode);
     break;
   case 0xd:
-    handleD(chip, opcode);
+    if (chip->config->noclip) {
+      handleDnoclip(chip, opcode);
+    } else {
+      handleD(chip, opcode);
+    }
     break;
   case 0xf:
     handleF(chip, opcode);

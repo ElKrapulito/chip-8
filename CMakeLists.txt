@@ -15,6 +15,7 @@ target_sources(chip8
 		src/chip-8.c
 		src/keyboard.c
 		src/opcodes.c
+        src/config.c
 )
 
 

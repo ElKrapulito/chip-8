@@ -20,7 +20,7 @@ static SDL_Renderer *renderer = NULL;
 static Chip8 *chip = NULL;
 static Uint64 last_time = 0;
 static float frequency = 1000.0f / 60.0f;
-static float opfrequency = 1000.0f / 700.0f;
+static float opfrequency = 1000.0f / 800.0f;
 static uint64_t oplast = 0;
 static SDL_AudioStream *stream = NULL;
 static int current_sine_sample = 0;
@@ -61,7 +61,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
   SDL_ResumeAudioStreamDevice(stream);
 
   printf("rom route: %s\n", argv[1]);
-  chip = initializeChip(argv[1]);
+  chip = initializeChip(argv);
 
   if (chip == NULL) {
     SDL_Log("failed to initialize chip: %s", SDL_GetError());
