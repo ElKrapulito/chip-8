@@ -19,15 +19,15 @@ static SDL_Window *window = NULL;
 static SDL_Renderer *renderer = NULL;
 static Chip8 *chip = NULL;
 static Uint64 last_time = 0;
-static float frequency = 1000.0f / 60.0f;
-static float opfrequency = 1000.0f / 800.0f;
+static float sound_frequency = 1000.0f / 60.0f;
+static float opfrequency = 1.0f / 1000.0f;
 static uint64_t oplast = 0;
 static SDL_AudioStream *stream = NULL;
 static int current_sine_sample = 0;
 
 #define WINDOWS_WIDTH 64
 #define WINDOWS_HEIGHT 32
-#define SCALE_PX 5
+#define SCALE_PX 12
 
 SDL_AppResult SDL_AppInit(void **appstate, int argc, char *argv[]) {
   SDL_AudioSpec spec;
@@ -99,18 +99,15 @@ SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event) {
 
 uint16_t opcode;
 SDL_FRect rects[2048];
-
+float now = 0.0f;
 SDL_AppResult SDL_AppIterate(void *appstate) {
-  const float now = SDL_GetTicks();
+  now = SDL_GetTicks();
 
-  if (now > last_time + frequency) {
+  if (now > last_time + sound_frequency) {
     last_time = now;
-    if (chip->delay > 0) {
-      chip->delay--;
-    }
-    if (chip->sound_t > 0) {
-      chip->sound_t--;
+    updatetimers(chip);
 
+    if (chip->sound_t > 0) {
       static float samples[512];
       int i;
 

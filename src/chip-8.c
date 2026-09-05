@@ -126,3 +126,13 @@ Chip8 *initializeChip(char *argv[]) {
   }
   return chip;
 }
+
+void updatetimers(Chip8 *chip) {
+  if (chip->delay > 0) {
+    chip->delay--;
+  }
+
+  if (chip->sound_t > 0) {
+    chip->sound_t--;
+  }
+}
