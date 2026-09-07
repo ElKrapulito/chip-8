@@ -2,3 +2,4 @@ main
 build/*
 test/*
 .cache/
+vendored/SDL

@@ -162,7 +162,7 @@ void handlenine(Chip8 *chip, uint16_t opcode) {
 void handleA(Chip8 *chip, uint16_t opcode) {
   uint16_t value = opcode & 0xFFF;
   chip->i = value;
-  printf("[%04x] set index = %04x\n", opcode, value);
+  // printf("[%04x] set index = %04x\n", opcode, value);
 }
 
 void handleB(Chip8 *chip, uint16_t opcode) {
@@ -186,13 +186,13 @@ void handleD(Chip8 *chip, uint16_t opcode) {
   uint8_t reg2 = (opcode >> 4) & 0xF;
   uint8_t regVX = chip->v[reg1];
   uint8_t regVY = chip->v[reg2];
-  printf("[%04x] VX: %d and VY: %d\n", opcode, regVX, regVY);
+  // printf("[%04x] VX: %d and VY: %d\n", opcode, regVX, regVY);
   uint8_t coordX = regVX & 63;
   uint8_t coordY = regVY & 31;
   chip->v[0xF] = 0;
   uint8_t rows = opcode & 0xF;
-  printf("[%04x] rows: %02x\n", opcode, rows);
-  printf("[%04x] index: %04x\n", opcode, chip->i);
+  // printf("[%04x] rows: %02x\n", opcode, rows);
+  // printf("[%04x] index: %04x\n", opcode, chip->i);
   uint8_t pixels;
 
   for (int i = 0; i < rows; i++) {

@@ -19,7 +19,7 @@ target_sources(chip8
 		src/keyboard.c
 		src/opcodes.c
         src/config.c
+        src/chip-cycles.c
 )
 
-
-target_link_libraries(chip8 PRIVATE SDL3::SDL3)
+target_link_libraries(chip8 PRIVATE SDL3::SDL3 m)
